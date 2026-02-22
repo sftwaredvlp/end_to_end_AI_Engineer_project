@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Engineer Agent - Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            margin-left: auto;
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 0;
+        }
+        
+        .message.assistant {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #333;
+            border-bottom-left-radius: 0;
+        }
+        
+        .message.tool {
+            align-self: center;
+            background: #fff3cd;
+            color: #856404;
+            width: 90%;
+            font-size: 12px;
+        }
+        
+        .message-content {
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        .message-timestamp {
+            font-size: 11px;
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+        
+        .tool-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff8e1;
+            border-left: 3px solid #ffc107;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            border-radius: 0 0 10px 10px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-group input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input:focus {
+            border-color: #667eea;
+        }
+        
+        .input-group button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .input-group button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .input-group button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #eee;
+        }
+        
+        .status.loading {
+            color: #667eea;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            margin-right: 5px;
+            border: 2px solid #667eea;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Engineer Agent</h1>
+            <p>OpenAI Function Calling ile Proje Işlemleri</p>
+        </div>
+        
+        <div class="chat-box" id="chatBox">
+            <div class="message assistant">
+                <div class="message-content">
+                    Merhaba! Ben AI Mühendis Aşistanıyım. 
+                    Aşağıdaki işlemleri yapabilirim:
+                    
+                    1. 📁 Proje klasörünü alma (pull_project_from_source)
+                    2. 📄 Dosya okuma (read_file_from_workspace)
+                    3. ✏️ Dosya düzenleme (replace_file_content)
+                    
+                    Örnek: "Proje klasörünü al" yazip Enter'e basın.
+                </div>
+                <div class="message-timestamp" id="time1"></div>
+            </div>
+        </div>
+        
+        <div class="status">
+            <span id="status">Hazır</span>
+        </div>
+        
+        <div class="input-area">
+            <div id="errorContainer"></div>
+            <div id="successContainer"></div>
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Komutunuzu yazin... (Örneğin: 'projeyi al')"
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button id="sendBtn" onclick="sendMessage()">Gönder</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let sessionId = localStorage.getItem('sessionId') || null;
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Kurulum temizle
+            clearMessages();
+            
+            // User mesajını göster
+            addMessage(message, 'user');
+            input.value = '';
+            document.getElementById('sendBtn').disabled = true;
+            setStatus('Işleniyor...', true);
+            
+            try {
+                const response = await fetch('/api/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showError(data.error || 'Bir hata oluştu');
+                    setStatus('Hata');
+                } else {
+                    // Session ID'yi kaydet
+                    sessionId = data.session_id;
+                    localStorage.setItem('sessionId', sessionId);
+                    
+                    // Tool calls'ı göster
+                    if (data.tool_calls && data.tool_calls.length > 0) {
+                        for (const toolCall of data.tool_calls) {
+                            addMessage(
+                                `🔧 Tool: ${toolCall.name}\n${JSON.stringify(toolCall.input, null, 2)}\n\nSonuç: ${JSON.stringify(toolCall.result, null, 2)}`,
+                                'tool'
+                            );
+                        }
+                    }
+                    
+                    // Assistant cevabını göster
+                    addMessage(data.response, 'assistant');
+                    
+                    showSuccess(`İslem tamamlandi (${data.turns} adım)`);
+                    setStatus(`Hazır - Sessio: ${sessionId.substring(0, 8)}...`);
+                }
+            } catch (error) {
+                showError(`Ağ hatası: ${error.message}`);
+                setStatus('Hata');
+            } finally {
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+        
+        function addMessage(content, role) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const now = new Date().toLocaleTimeString('tr-TR');
+            messageDiv.innerHTML = `
+                <div>
+                    <div class="message-content">${escapeHtml(content)}</div>
+                    <div class="message-timestamp">${now}</div>
+                </div>
+            `;
+            
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        
+        function setStatus(text, isLoading = false) {
+            const status = document.getElementById('status');
+            status.innerHTML = isLoading 
+                ? `<span class="spinner"></span>${text}` 
+                : text;
+            status.parentElement.classList.toggle('loading', isLoading);
+        }
+        
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+            setTimeout(() => { container.innerHTML = ''; }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const container = document.getElementById('successContainer');
+            container.innerHTML = `<div class="success-message">${escapeHtml(message)}</div>`;
+            setTimeout(() => { container.innerHTML = ''; }, 5000);
+        }
+        
+        function clearMessages() {
+            document.getElementById('errorContainer').innerHTML = '';
+            document.getElementById('successContainer').innerHTML = '';
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Başlangıç
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('messageInput').focus();
+        });
+    </script>
+</body>
+</html>
