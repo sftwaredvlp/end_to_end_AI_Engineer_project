@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: ai_engineer_agent
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=django-insecure-dev-key
+      - DEBUG=True
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,web
+      - WORKSPACE_DIR=/tmp/ai_workspace
+      - SOURCE_PROJECT_DIR=/app
+    volumes:
+      - .:/app
+      - /tmp/ai_workspace:/tmp/ai_workspace
+    working_dir: /app
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    networks:
+      - ai_network
+
+volumes:
+  ai_workspace:
+    driver: local
+
+networks:
+  ai_network:
+    driver: bridge
