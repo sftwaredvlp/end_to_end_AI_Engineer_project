@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent akışı – Chat + Tool calling</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      background: linear-gradient(160deg, #1a1a2e 0%, #16213e 100%);
+      color: #e8e8e8;
+      min-height: 100vh;
+    }
+    h1 { color: #a8e6cf; font-size: 1.6rem; margin-bottom: 0.25rem; }
+    h2 { color: #7ec8e3; font-size: 1.1rem; margin-top: 2rem; }
+    .subtitle { color: #8892a0; font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .mermaid { background: rgba(22,33,62,0.8); padding: 1.5rem; border-radius: 12px; margin: 1rem 0; border: 1px solid #2a3a5a; }
+    .mermaid-caption { color: #8892a0; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1.5rem; }
+    ul { line-height: 1.7; color: #c8d0dc; }
+    code { background: #0f0f23; padding: 0.15em 0.5em; border-radius: 4px; font-size: 0.9em; }
+    .step { display: inline-block; background: #2d5a27; color: #a8e6cf; width: 1.4em; height: 1.4em; text-align: center; line-height: 1.4; border-radius: 4px; margin-right: 0.5rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Agent akışı – Chat + Tool calling</h1>
+  <p class="subtitle">Örnek: &ldquo;calisma1/merhaba.txt dosyasını oku&rdquo; → 2 tur, 1 tool çağrısı.</p>
+
+  <h2>Özet akış</h2>
+  <div class="mermaid">
+flowchart LR
+  U["Kullanici"] --> T1["Tur 1: API + tool"]
+  T1 --> T2["Tur 2: API"]
+  T2 --> C["Cevap"]
+  </div>
+  <p class="mermaid-caption">Kisa yol: her turda API cagrisi; tool varsa calistirilir, sonuc eklenir, tekrar API.</p>
+
+  <h2>Detaylı akış (2 tur)</h2>
+  <div class="mermaid">
+flowchart TB
+  subgraph baslangic["Baslangic"]
+    A["Kullanici mesaji"] --> B["messages: system + user"]
+  end
+
+  subgraph tur1["Tur 1"]
+    B --> C["API: chat.completions"]
+    C --> D{"Model cevabi?"}
+    D -->|tool_calls| E["read_file_in_workspace"]
+    E --> F["Tool calistir - dosya icerigi"]
+    F --> G["Sonuc messages'a ekle: assistant + tool"]
+  end
+
+  subgraph tur2["Tur 2"]
+    G --> H["messages: 4 mesaj"]
+    H --> I["API: chat.completions"]
+    I --> J{"Model cevabi?"}
+    J -->|content, tool_calls bos| K["Nihai metin cevabi"]
+    K --> L["Bitis - kullaniciya don"]
+  end
+
+  style A fill:#2d5a27
+  style C fill:#1e3a5f
+  style I fill:#1e3a5f
+  style E fill:#5a3d2d
+  style K fill:#2d5a27
+  style L fill:#2d4a5a
+  </div>
+  <p class="mermaid-caption">Detay: mesajlar, API cagrilari, tool secimi ve nihai cevap.</p>
+
+  <h2>Trace log ile eşleşme</h2>
+  <ul>
+    <li><span class="step">1</span><strong>(2b)</strong> Her turda: API'ye gönderilen <code>messages</code> JSON.</li>
+    <li><span class="step">2</span><strong>(3b)</strong> Her turda: Model cevabı (ham) – <code>content</code> ve <code>tool_calls</code>.</li>
+    <li><span class="step">3</span>Tur 1: <code>tool_calls: [read_file_in_workspace]</code> → tool çalışır, döngü devam.</li>
+    <li><span class="step">4</span>Tur 2: <code>tool_calls: []</code>, <code>content</code> dolu → nihai cevap, dön.</li>
+  </ul>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', flowchart: { useMaxWidth: true } });
+  </script>
+</body>
+</html>

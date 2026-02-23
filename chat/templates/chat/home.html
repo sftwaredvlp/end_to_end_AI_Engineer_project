@@ -1,0 +1,145 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat — Proje Asistanı</title>
+    <link rel="stylesheet" href="{% static 'css/chat.css' %}">
+</head>
+<body>
+    <h1>Django + OpenAI Function Calling</h1>
+    <p>Proje kopyalama, dosya okuma ve metin değiştirme için komut yazabilirsin.</p>
+
+    <form id="chatForm">
+        <label for="message">Mesajın</label>
+        <textarea id="message" name="message" placeholder="Örn: workspace'i listele, sonra bir dosyayı oku" required></textarea>
+        <button type="submit" id="submitBtn">Gönder Bakalim</button>
+        <button type="button" id="clearBtn" class="btn-clear">Geçmişi temizle</button>
+    </form>
+
+    <div id="conversation" class="conversation-container" aria-label="Konuşma geçmişi"></div>
+    <div id="steps" class="steps-container" aria-label="Agent adımları"></div>
+    <div id="response" class="empty">Cevap burada görünecek.</div>
+
+    <script>
+        const form = document.getElementById('chatForm');
+        const messageInput = document.getElementById('message');
+        const submitBtn = document.getElementById('submitBtn');
+        const responseEl = document.getElementById('response');
+        const stepsEl = document.getElementById('steps');
+        const conversationEl = document.getElementById('conversation');
+
+        var conversationHistory = [];
+
+        function renderConversation() {
+            if (conversationHistory.length === 0) {
+                conversationEl.innerHTML = '';
+                conversationEl.classList.remove('has-messages');
+                return;
+            }
+            conversationEl.classList.add('has-messages');
+            conversationEl.innerHTML = conversationHistory.map(function (m) {
+                var isUser = m.role === 'user';
+                var text = (m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                return '<div class="conv-msg ' + (isUser ? 'conv-user' : 'conv-assistant') + '"><span class="conv-role">' + (isUser ? 'Sen' : 'Asistan') + '</span><div class="conv-content">' + text + '</div></div>';
+            }).join('');
+            conversationEl.scrollTop = conversationEl.scrollHeight;
+        }
+
+        function stepLabel(name) {
+            const labels = {
+                read_file_in_workspace: 'Dosya okundu',
+                copy_project_to_workspace: 'Proje kopyalandı',
+                replace_text_in_file: 'Metin değiştirildi',
+                list_files_in_workspace: 'Klasör listelendi',
+                search_in_workspace: 'Metin arandı',
+                run_tests_in_workspace: 'Testler çalıştırıldı',
+                run_linter_in_workspace: 'Linter çalıştırıldı'
+            };
+            return labels[name] || name;
+        }
+
+        function renderSteps(steps) {
+            if (!steps || steps.length === 0) {
+                stepsEl.innerHTML = '';
+                stepsEl.classList.remove('has-steps');
+                return;
+            }
+            stepsEl.classList.add('has-steps');
+            stepsEl.innerHTML = '<h3 class="steps-title">Yapılan işlemler</h3>' + steps.map(function (s, i) {
+                const args = s.arguments || {};
+                let argSummary = '';
+                if (args.relative_path !== undefined && args.relative_path !== '') argSummary = args.relative_path;
+                else if (args.source_folder_name && args.target_folder_name) argSummary = args.source_folder_name + ' → ' + args.target_folder_name;
+                else if (s.name === 'list_files_in_workspace') argSummary = args.relative_path || 'workspace kökü';
+                else if (s.name === 'search_in_workspace' && args.pattern) argSummary = '"' + args.pattern + '"' + (args.relative_path ? ' in ' + args.relative_path : '');
+                else if (s.name === 'run_tests_in_workspace') argSummary = args.relative_path || 'workspace kökü';
+                else if (s.name === 'run_linter_in_workspace') argSummary = (args.relative_path || '') + (args.linter ? ' (' + args.linter + ')' : '');
+                const result = (s.result || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return '<div class="step-item"><span class="step-num">' + (i + 1) + '</span> ' +
+                    '<span class="step-name">' + stepLabel(s.name) + '</span>' +
+                    (argSummary ? ' <span class="step-args">' + argSummary + '</span>' : '') +
+                    '<pre class="step-result">' + result + '</pre></div>';
+            }).join('');
+        }
+
+        function setResponse(text, isError) {
+            responseEl.textContent = text || '(Boş cevap)';
+            responseEl.className = isError ? 'error' : 'success';
+        }
+
+        function setLoading(loading) {
+            submitBtn.disabled = loading;
+            if (loading) {
+                stepsEl.innerHTML = '';
+                stepsEl.classList.remove('has-steps');
+                responseEl.textContent = 'Gönderiliyor…';
+                responseEl.className = 'empty';
+            }
+        }
+
+        function clearConversation() {
+            conversationHistory = [];
+            renderConversation();
+            stepsEl.innerHTML = '';
+            stepsEl.classList.remove('has-steps');
+            responseEl.textContent = 'Cevap burada görünecek.';
+            responseEl.className = 'empty';
+        }
+
+        document.getElementById('clearBtn').addEventListener('click', clearConversation);
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) {
+                setResponse('Lütfen bir mesaj yaz.', true);
+                return;
+            }
+            setLoading(true);
+            try {
+                const res = await fetch('/api/chat/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, history: conversationHistory }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    setResponse(data.error || 'Bir hata oluştu.', true);
+                    return;
+                }
+                conversationHistory.push({ role: 'user', content: message });
+                conversationHistory.push({ role: 'assistant', content: data.response || '(Cevap yok)' });
+                renderConversation();
+                renderSteps(data.steps);
+                setResponse(data.response || '(Cevap yok)');
+            } catch (err) {
+                setResponse('Bağlantı hatası: ' + err.message, true);
+            } finally {
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>

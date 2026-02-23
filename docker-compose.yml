@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # workspace ve source_projects kalıcı olsun
+      - ./workspace:/app/workspace
+      - ./source_projects:/app/source_projects
+    restart: unless-stopped

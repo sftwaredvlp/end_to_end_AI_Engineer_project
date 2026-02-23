@@ -1,0 +1,2 @@
+Merhaba, bu bir deneme dosyasidir.
+Proje alma tool'u bu klasoru workspace'e kopyalayacak.
